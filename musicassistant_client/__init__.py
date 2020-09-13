@@ -231,6 +231,27 @@ class MusicAssistant:
         """Execute command on given player's queue."""
         return await self.__async_put_data(f"players/{player_id}/queue/{cmd}", cmd_args)
 
+    async def async_play_media(
+        self,
+        player_id: str,
+        media_items: Union[dict, List[dict]],
+        queue_opt: str = "play",
+    ):
+        """
+        Play media item(s) on the given player.
+
+            :param player_id: player_id of the player to handle the command.
+            :param media_item: media item(s) that should be played (single item or list of items)
+            :param queue_opt:
+                play -> Insert new items in queue and start playing at inserted position
+                replace -> Replace queue contents with these items
+                next -> Play item(s) after current playing item
+                add -> Append new items at end of the queue
+        """
+        return await self.__async_post_data(
+            f"players/{player_id}/play_media/{queue_opt}", media_items
+        )
+
     async def async_get_token(self) -> str:
         """Get auth token by logging in."""
         # return existing token if we have one in memory
