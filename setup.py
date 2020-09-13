@@ -1,7 +1,8 @@
-from pathlib import Path
+"""Setup of Music Assistant client."""
 import os
+from pathlib import Path
 
-from setuptools import setup, glob, find_packages
+from setuptools import find_packages, setup
 
 PROJECT_DIR = Path(__file__).parent.resolve()
 README_FILE = PROJECT_DIR / "README.md"
@@ -11,9 +12,9 @@ with open("requirements.txt") as f:
     INSTALL_REQUIRES = f.read().splitlines()
 
 PACKAGE_FILES = []
-for (path, directories, filenames) in os.walk('musicassistant_client/'):
+for (path, directories, filenames) in os.walk("musicassistant_client/"):
     for filename in filenames:
-        PACKAGE_FILES.append(os.path.join('..', path, filename))
+        PACKAGE_FILES.append(os.path.join("..", path, filename))
 
 setup(
     name="musicassistant_client",
@@ -29,9 +30,7 @@ setup(
     python_requires=">=3.7",
     include_package_data=True,
     install_requires=INSTALL_REQUIRES,
-    package_data={
-        'musicassistant_client': PACKAGE_FILES,
-    },
+    package_data={"musicassistant_client": PACKAGE_FILES},
     zip_safe=False,
     classifiers=[
         "Development Status :: 4 - Beta",

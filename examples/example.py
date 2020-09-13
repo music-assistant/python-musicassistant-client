@@ -34,7 +34,7 @@ if __name__ == "__main__":
     mass = MusicAssistant(url, username, password)
 
     async def mass_event(event, event_details):
-        """Callback for received events."""
+        """Handle callback for received events."""
         LOGGER.info("received event %s --> %s\n", event, event_details)
 
     mass.register_event_callback(
@@ -42,6 +42,7 @@ if __name__ == "__main__":
     )
 
     async def run():
+        """Handle async code execution."""
         await mass.async_connect()
         players = await mass.async_get_players()
         LOGGER.info("There are %s players registered in Music Assistant", len(players))
@@ -52,7 +53,9 @@ if __name__ == "__main__":
         tracks = await mass.async_get_library_tracks()
         LOGGER.info("There are %s tracks registered in Music Assistant", len(tracks))
         playlists = await mass.async_get_library_tracks()
-        LOGGER.info("There are %s playlists registered in Music Assistant", len(playlists))
+        LOGGER.info(
+            "There are %s playlists registered in Music Assistant", len(playlists)
+        )
         await asyncio.sleep(10)
         await mass.async_close()
         loop.stop()
