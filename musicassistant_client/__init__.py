@@ -235,8 +235,6 @@ class MusicAssistant:
         """Get auth token by logging in."""
         # return existing token if we have one in memory
         if self.__auth_token and (self.__auth_token["expires"] > int(time.time()) + 20):
-            token_hours = (self.__auth_token["expires"] - int(time.time())) / 60 / 60
-            LOGGER.info("token is valid for %s hours", token_hours)
             return self.__auth_token["token"]
         tokeninfo = {}
         # retrieve token with login
@@ -258,22 +256,39 @@ class MusicAssistant:
                 tokeninfo["expires"]
             ).timestamp()
             self.__auth_token = tokeninfo
-            LOGGER.info("Succesfully logged in.")
+            LOGGER.debug("Succesfully logged in.")
             return self.__auth_token["token"]
         raise RuntimeError("Login failed. Invalid credentials provided?")
+
+    async def send_event(self, message: str, message_details: Any = None) -> None:
+        """Send event to Music Assistant."""
+        if not self.__async_send_ws:
+            raise RuntimeError("Not connected")
+        await self.__async_send_ws(message, message_details)
 
     async def __async_mass_websocket(self) -> None:
         """Receive events from Music Assistant through websockets."""
         protocol = "wss" if self._use_ssl else "ws"
         while True:
             try:
-                LOGGER.info("Connecting to %s", self._host)
+                LOGGER.debug("Connecting to %s", self._host)
                 token = await self.async_get_token()
                 async with self._http_session.ws_connect(
                     f"{protocol}://{self._host}/ws", verify_ssl=False
                 ) as conn:
+
+                    # store handle to send messages to ws
+                    async def send_msg(
+                        message: str, message_details: Any = None
+                    ) -> None:
+                        """Handle to send messages back to WS."""
+                        await conn.send_json(
+                            {"message": message, "message_details": message_details}
+                        )
+
+                    self.__async_send_ws = send_msg
                     # send login message
-                    await conn.send_json({"message": "login", "message_details": token})
+                    await send_msg("login", token)
                     # keep listening for messages
                     async for msg in conn:
 
@@ -284,7 +299,7 @@ class MusicAssistant:
                             if msg == "login" and msg_details.get("exp"):
                                 LOGGER.info("Connected to %s", self._host)
                                 # subscribe to all events
-                                await conn.send_json({"message": "add_event_listener"})
+                                await send_msg("add_event_listener")
                             else:
                                 await self.__async_signal_event(msg, msg_details)
                         elif msg.type == aiohttp.WSMsgType.ERROR:
@@ -295,7 +310,8 @@ class MusicAssistant:
                 ConnectionRefusedError,
             ) as exc:
                 LOGGER.error(exc)
-                await asyncio.sleep(10)
+                self.__async_send_ws = None
+                await asyncio.sleep(30)
 
     async def __async_get_data(self, endpoint: str) -> Union[List[dict], dict]:
         """Get data from hass rest api."""
