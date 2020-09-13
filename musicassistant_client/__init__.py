@@ -1,17 +1,17 @@
 """
-    Music Assistant Client is a simple wrapper for the websockets and rest Api's
-    provided by Music Assistant that allows for rapid development of apps
-    connected to Music Assistant.
+Music Assistant Client.
+
+Simple wrapper for the websockets and rest Api's
+provided by Music Assistant that allows for rapid development of apps
+connected to Music Assistant.
 """
 
-from datetime import datetime
 import asyncio
 import functools
 import logging
-import os
-from enum import Enum
 import time
-from typing import Any, Awaitable, Callable, List, Optional, Tuple, Union
+from datetime import datetime
+from typing import Any, Awaitable, Callable, List, Union
 
 import aiohttp
 
@@ -30,17 +30,26 @@ EVENT_PLAYER_CONTROL_UPDATED = "player control updated"
 
 
 class MusicAssistant:
-    """Connection to MusicAssistant (over websockets)."""
+    """Connection to MusicAssistant server (over websockets and rest api)."""
 
-    def __init__(self, url: str, username: str, password: str, loop=None):
+    def __init__(
+        self,
+        url: str,
+        username: str,
+        password: str,
+        loop: asyncio.AbstractEventLoop = None,
+    ) -> None:
         """
         Initialize the connection to MusicAssistant.
+
             :param url: full url to the MusicAssistant instance.
         """
+        self._username = username
+        self._password = password
         self._loop = loop
         self.__async_send_ws = None
-        self._ws_callbacks = {}
-        self._players = {}
+        self._ws_callbacks: dict = {}
+        self._players: dict = {}
         if url.startswith("https://"):
             self._use_ssl = True
             self._host = url.replace("https://", "")
@@ -48,23 +57,23 @@ class MusicAssistant:
             self._use_ssl = False
             self._host = url.replace("http://", "")
         self._http_session = None
-        self._event_listeners = []
+        self._event_listeners: list = []
         self._ws_task = None
-        self._username = username
-        self._password = password
-        self.__auth_token = {}
+        self.__auth_token: dict = {}
 
-    async def async_connect(self):
+    async def async_connect(self) -> None:
         """Connect to Music Assistant."""
         if not self._loop:
             self._loop = asyncio.get_running_loop()
         self._http_session = aiohttp.ClientSession(
             loop=self._loop, connector=aiohttp.TCPConnector()
         )
-        self._ws_task = self._loop.create_task(self.__async_mass_websocket())
+        self._ws_task: asyncio.Task = self._loop.create_task(
+            self.__async_mass_websocket()
+        )
         await self.async_get_token()
 
-    async def async_close(self):
+    async def async_close(self) -> None:
         """Close/stop the connection."""
         if self._ws_task:
             self._ws_task.cancel()
@@ -79,6 +88,7 @@ class MusicAssistant:
     ) -> Callable:
         """
         Add callback for events.
+
         Returns function to remove the listener.
             :param cb_func: callback function or coroutine
             :param event_filter: Optionally only listen for these events
@@ -86,7 +96,7 @@ class MusicAssistant:
         listener = (cb_func, event_filter)
         self._event_listeners.append(listener)
 
-        def remove_listener():
+        def remove_listener() -> None:
             self._event_listeners.remove(listener)
 
         return remove_listener
@@ -113,7 +123,9 @@ class MusicAssistant:
 
     async def async_get_artist(self, artist_id: str, provider_id: str) -> dict:
         """Return full artist object for specified artist/provider id.."""
-        return await self.__async_get_data(f"artists/{artist_id}?provider={provider_id}")
+        return await self.__async_get_data(
+            f"artists/{artist_id}?provider={provider_id}"
+        )
 
     async def async_get_album(self, album_id: str, provider_id: str) -> dict:
         """Return full album object for specified album/provider id.."""
@@ -125,7 +137,9 @@ class MusicAssistant:
 
     async def async_get_playlist(self, playlist_id: str, provider_id: str) -> dict:
         """Return full playlist object for specified playlist/provider id.."""
-        return await self.__async_get_data(f"artists/{playlist_id}?provider={provider_id}")
+        return await self.__async_get_data(
+            f"artists/{playlist_id}?provider={provider_id}"
+        )
 
     async def async_get_radio(self, radio_id: str, provider_id: str) -> dict:
         """Return full radio object for specified radio/provider id.."""
@@ -146,24 +160,43 @@ class MusicAssistant:
         scheme = "https" if self._use_ssl else "http"
         return f"{scheme}{self._host}/api/{media_type}/{item_id}?provider={provider_id}&size={size}"
 
-    async def async_get_artist_toptracks(self, artist_id: str, provider_id: str) -> List[dict]:
+    async def async_get_artist_toptracks(
+        self, artist_id: str, provider_id: str
+    ) -> List[dict]:
         """Return top tracks for specified artist/provider id."""
-        return await self.__async_get_data(f"artists/{artist_id}/toptracks?provider={provider_id}")
+        return await self.__async_get_data(
+            f"artists/{artist_id}/toptracks?provider={provider_id}"
+        )
 
-    async def async_get_artist_albums(self, artist_id: str, provider_id: str) -> List[dict]:
+    async def async_get_artist_albums(
+        self, artist_id: str, provider_id: str
+    ) -> List[dict]:
         """Return albums for specified artist/provider id."""
-        return await self.__async_get_data(f"artists/{artist_id}/albums?provider={provider_id}")
+        return await self.__async_get_data(
+            f"artists/{artist_id}/albums?provider={provider_id}"
+        )
 
-    async def async_get_playlist_tracks(self, playlist_id: str, provider_id: str) -> List[dict]:
+    async def async_get_playlist_tracks(
+        self, playlist_id: str, provider_id: str
+    ) -> List[dict]:
         """Return the playlist's tracks for specified playlist/provider id."""
-        return await self.__async_get_data(f"playlists/{playlist_id}/tracks?provider={provider_id}")
+        return await self.__async_get_data(
+            f"playlists/{playlist_id}/tracks?provider={provider_id}"
+        )
 
-    async def async_get_album_tracks(self, album_id: str, provider_id: str) -> List[dict]:
+    async def async_get_album_tracks(
+        self, album_id: str, provider_id: str
+    ) -> List[dict]:
         """Return the album's tracks for specified album/provider id."""
-        return await self.__async_get_data(f"albums/{album_id}/tracks?provider={provider_id}")
+        return await self.__async_get_data(
+            f"albums/{album_id}/tracks?provider={provider_id}"
+        )
 
     async def async_search(
-        self, query: str, media_types: str = "artists,albums,tracks,playlists,radios", limit=5
+        self,
+        query: str,
+        media_types: str = "artists,albums,tracks,playlists,radios",
+        limit=5,
     ) -> dict:
         """Return search results (media items) for given query."""
         return await self.__async_get_data(
@@ -178,7 +211,9 @@ class MusicAssistant:
         """Return player details for the given player."""
         return await self.__async_get_data(f"players/{player_id}")
 
-    async def async_player_command(self, player_id, cmd: str, cmd_args: Any = None) -> bool:
+    async def async_player_command(
+        self, player_id, cmd: str, cmd_args: Any = None
+    ) -> bool:
         """Execute command on given player."""
         return await self.__async_post_data(f"players/{player_id}/cmd/{cmd}", cmd_args)
 
@@ -190,11 +225,13 @@ class MusicAssistant:
         """Return all queue items for the given player."""
         return await self.__async_get_data(f"players/{player_id}/queue/items")
 
-    async def async_player_queue_command(self, player_id, cmd: str, cmd_args: Any = None) -> bool:
+    async def async_player_queue_command(
+        self, player_id, cmd: str, cmd_args: Any = None
+    ) -> bool:
         """Execute command on given player's queue."""
         return await self.__async_put_data(f"players/{player_id}/queue/{cmd}", cmd_args)
 
-    async def async_get_token(self):
+    async def async_get_token(self) -> str:
         """Get auth token by logging in."""
         # return existing token if we have one in memory
         if self.__auth_token and (self.__auth_token["expires"] > int(time.time()) + 20):
@@ -203,7 +240,11 @@ class MusicAssistant:
             return self.__auth_token["token"]
         tokeninfo = {}
         # retrieve token with login
-        url = f"https://{self._host}/login" if self._use_ssl else f"http://{self._host}/login"
+        url = (
+            f"https://{self._host}/login"
+            if self._use_ssl
+            else f"http://{self._host}/login"
+        )
         headers = {"Content-Type": "application/json"}
         async with self._http_session.post(
             url,
@@ -213,13 +254,15 @@ class MusicAssistant:
         ) as response:
             tokeninfo = await response.json()
         if tokeninfo:
-            tokeninfo["expires"] = datetime.fromisoformat(tokeninfo["expires"]).timestamp()
+            tokeninfo["expires"] = datetime.fromisoformat(
+                tokeninfo["expires"]
+            ).timestamp()
             self.__auth_token = tokeninfo
             LOGGER.info("Succesfully logged in.")
             return self.__auth_token["token"]
         raise RuntimeError("Login failed. Invalid credentials provided?")
 
-    async def __async_mass_websocket(self):
+    async def __async_mass_websocket(self) -> None:
         """Receive events from Music Assistant through websockets."""
         protocol = "wss" if self._use_ssl else "ws"
         while True:
@@ -247,48 +290,62 @@ class MusicAssistant:
                         elif msg.type == aiohttp.WSMsgType.ERROR:
                             raise Exception("error in websocket")
 
-            except (aiohttp.client_exceptions.ClientConnectorError, ConnectionRefusedError,) as exc:
+            except (
+                aiohttp.client_exceptions.ClientConnectorError,
+                ConnectionRefusedError,
+            ) as exc:
                 LOGGER.error(exc)
                 await asyncio.sleep(10)
 
-    async def __async_get_data(self, endpoint: str):
+    async def __async_get_data(self, endpoint: str) -> Union[List[dict], dict]:
         """Get data from hass rest api."""
         token = await self.async_get_token()
         url = f"http://{self._host}/api/{endpoint}"
         if self._use_ssl:
             url = f"https://{self._host}/api/{endpoint}"
-        headers = {"Content-Type": "application/json", "Authorization": "Bearer %s" % token}
-        async with self._http_session.get(url, headers=headers, verify_ssl=False) as response:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer %s" % token,
+        }
+        async with self._http_session.get(
+            url, headers=headers, verify_ssl=False
+        ) as response:
             response = await response.json()
             if "items" in response:
                 return response["items"]
             return response
 
-    async def __async_post_data(self, endpoint: str, data: dict):
+    async def __async_post_data(self, endpoint: str, data: dict) -> Any:
         """Post data to hass rest api."""
         token = self.async_get_token()
         url = f"http://{self._host}/api/{endpoint}"
         if self._use_ssl:
             url = f"https://{self._host}/api/{endpoint}"
-        headers = {"Content-Type": "application/json", "Authorization": "Bearer %s" % token}
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer %s" % token,
+        }
         async with self._http_session.post(
             url, headers=headers, json=data, verify_ssl=False
         ) as response:
             return await response.json()
 
-    async def __async_put_data(self, endpoint: str, data: dict):
+    async def __async_put_data(self, endpoint: str, data: dict) -> Any:
         """Put data to hass rest api."""
         token = await self.async_get_token()
         url = f"http://{self._host}/api/{endpoint}"
         if self._use_ssl:
             url = f"https://{self._host}/api/{endpoint}"
-        headers = {"Content-Type": "application/json", "Authorization": "Bearer %s" % token}
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer %s" % token,
+        }
         async with self._http_session.put(
             url, headers=headers, json=data, verify_ssl=False
         ) as response:
             return await response.json()
 
-    async def __async_signal_event(self, event: str, event_details: Any = None):
+    async def __async_signal_event(self, event: str, event_details: Any = None) -> None:
         """Signal event to registered callbacks."""
         for cb_func, event_filter in self._event_listeners:
             if not (event_filter is None or event in event_filter):
@@ -304,4 +361,3 @@ class MusicAssistant:
                 self._loop.create_task(check_target(event, event_details))
             else:
                 self._loop.run_in_executor(None, cb_func, event, event_details)
-
