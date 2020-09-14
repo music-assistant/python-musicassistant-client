@@ -368,10 +368,8 @@ class MusicAssistant:
         ) as response:
             return await response.json()
 
-    async def __async_post_data(self, endpoint: str, data: dict) -> Any:
+    async def __async_post_data(self, endpoint: str, data: Any) -> Any:
         """Post data to hass rest api."""
-        if data is None:
-            data = {}
         token = await self.async_get_token()
         url = f"http://{self._host}/api/{endpoint}"
         if self._use_ssl:
@@ -385,10 +383,8 @@ class MusicAssistant:
         ) as response:
             return await response.json()
 
-    async def __async_put_data(self, endpoint: str, data: dict) -> Any:
+    async def __async_put_data(self, endpoint: str, data: Any) -> Any:
         """Put data to hass rest api."""
-        if data is None:
-            data = {}
         token = await self.async_get_token()
         url = f"http://{self._host}/api/{endpoint}"
         if self._use_ssl:
