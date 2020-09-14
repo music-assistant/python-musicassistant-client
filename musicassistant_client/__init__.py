@@ -112,23 +112,28 @@ class MusicAssistant:
 
     async def async_get_library_artists(self) -> List[dict]:
         """Return all library artists on Music Assistant."""
-        return await self.__async_get_data("library/artists")
+        result = await self.__async_get_data("library/artists")
+        return result["items"]
 
     async def async_get_library_albums(self) -> List[dict]:
         """Return all library albums on Music Assistant."""
-        return await self.__async_get_data("library/albums")
+        result = await self.__async_get_data("library/albums")
+        return result["items"]
 
     async def async_get_library_tracks(self) -> List[dict]:
         """Return all library tracks on Music Assistant."""
-        return await self.__async_get_data("library/tracks")
+        result = await self.__async_get_data("library/tracks")
+        return result["items"]
 
     async def async_get_library_playlists(self) -> List[dict]:
         """Return all library playlists on Music Assistant."""
-        return await self.__async_get_data("library/playlists")
+        result = await self.__async_get_data("library/playlists")
+        return result["items"]
 
     async def async_get_library_radios(self) -> List[dict]:
         """Return all library radios on Music Assistant."""
-        return await self.__async_get_data("library/radios")
+        result = await self.__async_get_data("library/radios")
+        return result["items"]
 
     async def async_get_artist(self, artist_id: str, provider_id: str) -> dict:
         """Return full artist object for specified artist/provider id.."""
@@ -173,33 +178,37 @@ class MusicAssistant:
         self, artist_id: str, provider_id: str
     ) -> List[dict]:
         """Return top tracks for specified artist/provider id."""
-        return await self.__async_get_data(
+        result = await self.__async_get_data(
             f"artists/{artist_id}/toptracks?provider={provider_id}"
         )
+        return result["items"]
 
     async def async_get_artist_albums(
         self, artist_id: str, provider_id: str
     ) -> List[dict]:
         """Return albums for specified artist/provider id."""
-        return await self.__async_get_data(
+        result = await self.__async_get_data(
             f"artists/{artist_id}/albums?provider={provider_id}"
         )
+        return result["items"]
 
     async def async_get_playlist_tracks(
         self, playlist_id: str, provider_id: str
     ) -> List[dict]:
         """Return the playlist's tracks for specified playlist/provider id."""
-        return await self.__async_get_data(
+        result = await self.__async_get_data(
             f"playlists/{playlist_id}/tracks?provider={provider_id}"
         )
+        return result["items"]
 
     async def async_get_album_tracks(
         self, album_id: str, provider_id: str
     ) -> List[dict]:
         """Return the album's tracks for specified album/provider id."""
-        return await self.__async_get_data(
+        result = await self.__async_get_data(
             f"albums/{album_id}/tracks?provider={provider_id}"
         )
+        return result["items"]
 
     async def async_search(
         self,
@@ -357,10 +366,7 @@ class MusicAssistant:
         async with self._http_session.get(
             url, headers=headers, verify_ssl=False
         ) as response:
-            response = await response.json()
-            if "items" in response:
-                return response["items"]
-            return response
+            return await response.json()
 
     async def __async_post_data(self, endpoint: str, data: dict) -> Any:
         """Post data to hass rest api."""
