@@ -1,3 +1,3 @@
 # musicassistant-client
-Very basic client for connecting to Music Assistant over websockets and REST.
+Python client to connect to a Music Assistant (music-assistant.github.io) server.
 
