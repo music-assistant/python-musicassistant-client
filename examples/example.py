@@ -24,14 +24,18 @@ if __name__ == "__main__":
     LOGGER.setLevel(logging.DEBUG)
 
     if len(sys.argv) < 4:
-        LOGGER.error("usage: example.py <url> <username> <password>")
+        LOGGER.error(
+            "usage: example.py <host> <username> <password> <optional: port> <optional: use ssl>"
+        )
         sys.exit()
 
-    url = sys.argv[1]
+    host = sys.argv[1]
     username = sys.argv[2]
     password = sys.argv[3]
+    port = sys.argv[4] if sys.argv > 4 else 8095
+    use_ssl = sys.argv[5] if sys.argv > 5 else False
     loop = asyncio.get_event_loop()
-    mass = MusicAssistant(url, username, password)
+    mass = MusicAssistant(host, port, username, password, use_ssl)
 
     async def mass_event(event, event_details):
         """Handle callback for received events."""

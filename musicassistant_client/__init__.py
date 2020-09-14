@@ -34,9 +34,11 @@ class MusicAssistant:
 
     def __init__(
         self,
-        url: str,
-        username: str,
-        password: str,
+        host: str,
+        port: int = 8095,
+        username: str = "admin",
+        password: str = "",
+        use_ssl: bool = False,
         loop: asyncio.AbstractEventLoop = None,
     ) -> None:
         """
@@ -44,22 +46,38 @@ class MusicAssistant:
 
             :param url: full url to the MusicAssistant instance.
         """
+        if host.endswith("/"):
+            host = host[:-1]  # strip trailing slash
+        self._host = host
+        self._port = port
         self._username = username
         self._password = password
+        self._use_ssl = use_ssl
         self._loop = loop
-        self.__async_send_ws = None
+        self._async_send_ws = None
         self._ws_callbacks: dict = {}
         self._players: dict = {}
-        if url.startswith("https://"):
-            self._use_ssl = True
-            self._host = url.replace("https://", "")
-        else:
-            self._use_ssl = False
-            self._host = url.replace("http://", "")
         self._http_session = None
         self._event_listeners: list = []
         self._ws_task = None
-        self.__auth_token: dict = {}
+        self._auth_token: dict = {}
+
+    @property
+    def host(self):
+        """Return the host of the connected Music Assistant Server."""
+        return self._host
+
+    @property
+    def port(self):
+        """Return the port of the connected Music Assistant Server."""
+        return self._port
+
+    @property
+    def base_url(self):
+        """Return the base url of the connected Music Assistant Server."""
+        if self._use_ssl:
+            return f"https://{self.host}:{self.port}"
+        return f"http://{self.host}:{self.port}"
 
     async def async_connect(self) -> None:
         """Connect to Music Assistant."""
@@ -270,18 +288,23 @@ class MusicAssistant:
             f"players/{player_id}/play_media/{queue_opt}", media_items
         )
 
+    async def async_get_media_item_image_url(self, media_item: dict, size=150):
+        """Get image url for given media_item."""
+        if not media_item:
+            return None
+        item_type = media_item["media_type"]
+        item_id = media_item["item_id"]
+        item_prov = media_item["provider"]
+        return f"{self.base_url}/api/{item_type}/{item_id}/thumb?provider={item_prov}&size={size}"
+
     async def async_get_token(self) -> str:
         """Get auth token by logging in."""
         # return existing token if we have one in memory
-        if self.__auth_token and (self.__auth_token["expires"] > int(time.time()) + 20):
-            return self.__auth_token["token"]
+        if self._auth_token and (self._auth_token["expires"] > int(time.time()) + 20):
+            return self._auth_token["token"]
         tokeninfo = {}
         # retrieve token with login
-        url = (
-            f"https://{self._host}/login"
-            if self._use_ssl
-            else f"http://{self._host}/login"
-        )
+        url = f"{self.base_url}/api/login"
         headers = {"Content-Type": "application/json"}
         async with self._http_session.post(
             url,
@@ -295,16 +318,16 @@ class MusicAssistant:
             tokeninfo["expires"] = datetime.fromisoformat(
                 tokeninfo["expires"]
             ).timestamp()
-            self.__auth_token = tokeninfo
+            self._auth_token = tokeninfo
             LOGGER.debug("Succesfully logged in.")
-            return self.__auth_token["token"]
+            return self._auth_token["token"]
         raise RuntimeError("Login failed. Invalid credentials provided?")
 
     async def send_event(self, message: str, message_details: Any = None) -> None:
         """Send event to Music Assistant."""
-        if not self.__async_send_ws:
+        if not self._async_send_ws:
             raise RuntimeError("Not connected")
-        await self.__async_send_ws(message, message_details)
+        await self._async_send_ws(message, message_details)
 
     async def __async_mass_websocket(self) -> None:
         """Receive events from Music Assistant through websockets."""
@@ -314,7 +337,7 @@ class MusicAssistant:
                 LOGGER.debug("Connecting to %s", self._host)
                 token = await self.async_get_token()
                 async with self._http_session.ws_connect(
-                    f"{protocol}://{self._host}/ws", verify_ssl=False
+                    f"{protocol}://{self._host}:{self._port}/ws", verify_ssl=False
                 ) as conn:
 
                     # store handle to send messages to ws
@@ -326,7 +349,7 @@ class MusicAssistant:
                             {"message": message, "message_details": message_details}
                         )
 
-                    self.__async_send_ws = send_msg
+                    self._async_send_ws = send_msg
                     # send login message
                     await send_msg("login", token)
                     # keep listening for messages
@@ -350,15 +373,13 @@ class MusicAssistant:
                 ConnectionRefusedError,
             ) as exc:
                 LOGGER.error(exc)
-                self.__async_send_ws = None
+                self._async_send_ws = None
                 await asyncio.sleep(30)
 
     async def __async_get_data(self, endpoint: str) -> Union[List[dict], dict]:
         """Get data from hass rest api."""
         token = await self.async_get_token()
-        url = f"http://{self._host}/api/{endpoint}"
-        if self._use_ssl:
-            url = f"https://{self._host}/api/{endpoint}"
+        url = f"{self.base_url}/api/{endpoint}"
         headers = {
             "Content-Type": "application/json",
             "Authorization": "Bearer %s" % token,
@@ -371,9 +392,7 @@ class MusicAssistant:
     async def __async_post_data(self, endpoint: str, data: Any) -> Any:
         """Post data to hass rest api."""
         token = await self.async_get_token()
-        url = f"http://{self._host}/api/{endpoint}"
-        if self._use_ssl:
-            url = f"https://{self._host}/api/{endpoint}"
+        url = f"{self.base_url}/api/{endpoint}"
         headers = {
             "Content-Type": "application/json",
             "Authorization": "Bearer %s" % token,
@@ -386,9 +405,7 @@ class MusicAssistant:
     async def __async_put_data(self, endpoint: str, data: Any) -> Any:
         """Put data to hass rest api."""
         token = await self.async_get_token()
-        url = f"http://{self._host}/api/{endpoint}"
-        if self._use_ssl:
-            url = f"https://{self._host}/api/{endpoint}"
+        url = f"{self.base_url}/api/{endpoint}"
         headers = {
             "Content-Type": "application/json",
             "Authorization": "Bearer %s" % token,
