@@ -271,7 +271,8 @@ class MusicAssistant:
             json={"username": self._username, "password": self._password},
             verify_ssl=False,
         ) as response:
-            tokeninfo = await response.json()
+            if response.status == 200:
+                tokeninfo = await response.json()
         if tokeninfo:
             tokeninfo["expires"] = datetime.fromisoformat(
                 tokeninfo["expires"]
