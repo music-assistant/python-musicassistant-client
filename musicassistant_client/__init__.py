@@ -292,10 +292,17 @@ class MusicAssistant:
         """Get image url for given media_item."""
         if not media_item:
             return None
-        item_type = media_item["media_type"]
-        item_id = media_item["item_id"]
-        item_prov = media_item["provider"]
-        return f"{self.base_url}/api/{item_type}/{item_id}/thumb?provider={item_prov}&size={size}"
+        if media_item["metadata"].get("image"):
+            return media_item["metadata"]["image"]
+        elif media_item.get("album", {}).get("metdata", {}).get("image"):
+            return media_item["metadata"]["album"]["image"]
+        elif media_item["provider"] == "database":
+            item_type = media_item["media_type"]
+            item_id = media_item["item_id"]
+            item_prov = media_item["provider"]
+            base_url = f"{self.base_url}/api"
+            return f"{base_url}/{item_type}/{item_id}/thumb?provider={item_prov}&size={size}"
+        return None
 
     async def async_get_token(self) -> str:
         """Get auth token by logging in."""
