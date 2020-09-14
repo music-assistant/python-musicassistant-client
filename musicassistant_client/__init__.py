@@ -294,9 +294,9 @@ class MusicAssistant:
             return None
         if media_item["metadata"].get("image"):
             return media_item["metadata"]["image"]
-        elif media_item.get("album", {}).get("metdata", {}).get("image"):
+        if media_item.get("album", {}).get("metdata", {}).get("image"):
             return media_item["metadata"]["album"]["image"]
-        elif media_item["provider"] == "database":
+        if media_item["provider"] == "database":
             item_type = media_item["media_type"]
             item_id = media_item["item_id"]
             item_prov = media_item["provider"]
