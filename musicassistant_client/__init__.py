@@ -161,21 +161,21 @@ class MusicAssistant:
 
     async def async_get_album(self, album_id: str, provider_id: str) -> dict:
         """Return full album object for specified album/provider id.."""
-        return await self.__async_get_data(f"artists/{album_id}?provider={provider_id}")
+        return await self.__async_get_data(f"albums/{album_id}?provider={provider_id}")
 
     async def async_get_track(self, track_id: str, provider_id: str) -> dict:
         """Return full track object for specified track/provider id.."""
-        return await self.__async_get_data(f"artists/{track_id}?provider={provider_id}")
+        return await self.__async_get_data(f"tracks/{track_id}?provider={provider_id}")
 
     async def async_get_playlist(self, playlist_id: str, provider_id: str) -> dict:
         """Return full playlist object for specified playlist/provider id.."""
         return await self.__async_get_data(
-            f"artists/{playlist_id}?provider={provider_id}"
+            f"playlists/{playlist_id}?provider={provider_id}"
         )
 
     async def async_get_radio(self, radio_id: str, provider_id: str) -> dict:
         """Return full radio object for specified radio/provider id.."""
-        return await self.__async_get_data(f"artists/{radio_id}?provider={provider_id}")
+        return await self.__async_get_data(f"radios/{radio_id}?provider={provider_id}")
 
     async def async_get_image(
         self, media_type: str, item_id: str, provider_id: str, size: int = 500
