@@ -68,10 +68,10 @@ class MusicAssistant:
         self._http_session = aiohttp.ClientSession(
             loop=self._loop, connector=aiohttp.TCPConnector()
         )
+        await self.async_get_token()
         self._ws_task: asyncio.Task = self._loop.create_task(
             self.__async_mass_websocket()
         )
-        await self.async_get_token()
 
     async def async_close(self) -> None:
         """Close/stop the connection."""
@@ -80,6 +80,15 @@ class MusicAssistant:
         if self._http_session:
             await self._http_session.close()
         LOGGER.info("Disconnected from Music Assistant")
+
+    async def __aenter__(self):
+        """Enter."""
+        await self.async_connect()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        """Exit."""
+        await self.async_close()
 
     def register_event_callback(
         self,
