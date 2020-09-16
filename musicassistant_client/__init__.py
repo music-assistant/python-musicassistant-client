@@ -115,6 +115,7 @@ class MusicAssistant:
             self._ws_task: asyncio.Task = self._loop.create_task(
                 self.__async_mass_websocket()
             )
+            self._connected = True
         except (
             aiohttp.client_exceptions.ClientConnectorError,
             ConnectionRefusedError,
@@ -128,7 +129,7 @@ class MusicAssistant:
                     60, self._loop.create_task, self.async_connect(auto_retry)
                 )
             else:
-                raise exc
+                raise ConnectionError from exc
 
     async def async_close(self) -> None:
         """Close/stop the connection."""
@@ -372,12 +373,12 @@ class MusicAssistant:
             self._auth_token = tokeninfo
             LOGGER.debug("Succesfully logged in.")
             return self._auth_token["token"]
-        raise RuntimeError("Login failed. Invalid credentials provided?")
+        raise InvalidCredentialsError("Login failed. Invalid credentials provided?")
 
     async def send_event(self, message: str, message_details: Any = None) -> None:
         """Send event to Music Assistant."""
         if not self._async_send_ws:
-            raise RuntimeError("Not connected")
+            raise NotConnectedError("Not connected")
         await self._async_send_ws(message, message_details)
 
     async def __async_mass_websocket(self) -> None:
@@ -412,7 +413,7 @@ class MusicAssistant:
                             msg_details = data["message_details"]
                             if msg == "login" and msg_details.get("exp"):
                                 LOGGER.debug("Connected to %s", self._host)
-                                self._connected = True
+                                await self.__async_signal_event(EVENT_CONNECTED)
                                 # subscribe to all events
                                 await send_msg("add_event_listener")
                             else:
@@ -425,14 +426,13 @@ class MusicAssistant:
                 ConnectionRefusedError,
             ) as exc:
                 LOGGER.error(exc)
-                self._connected = False
                 self._async_send_ws = None
                 await asyncio.sleep(30)
 
     async def __async_get_data(self, endpoint: str) -> Union[List[dict], dict]:
         """Get data from hass rest api."""
         if not self._connected:
-            raise RuntimeError("Not connected")
+            raise NotConnectedError("Not connected")
         token = await self.async_get_token()
         url = f"{self.base_url}/api/{endpoint}"
         headers = {
@@ -447,7 +447,7 @@ class MusicAssistant:
     async def __async_post_data(self, endpoint: str, data: Any) -> Any:
         """Post data to hass rest api."""
         if not self._connected:
-            raise RuntimeError("Not connected")
+            raise NotConnectedError("Not connected")
         token = await self.async_get_token()
         url = f"{self.base_url}/api/{endpoint}"
         headers = {
@@ -462,7 +462,7 @@ class MusicAssistant:
     async def __async_put_data(self, endpoint: str, data: Any) -> Any:
         """Put data to hass rest api."""
         if not self._connected:
-            raise RuntimeError("Not connected")
+            raise NotConnectedError("Not connected.")
         token = await self.async_get_token()
         url = f"{self.base_url}/api/{endpoint}"
         headers = {
@@ -490,3 +490,15 @@ class MusicAssistant:
                 self._loop.create_task(check_target(event, event_details))
             else:
                 self._loop.run_in_executor(None, cb_func, event, event_details)
+
+
+class InvalidCredentialsError(Exception):
+    """Exception raised when invalid credentials supplied."""
+
+
+class NotConnectedError(Exception):
+    """Exception raised when trying to call a method when the connection was not initialized."""
+
+
+class ConnectionError(Exception):
+    """Exception raised when the connection could not be established."""
