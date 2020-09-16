@@ -40,6 +40,7 @@ class MusicAssistant:
         password: str = "",
         use_ssl: bool = False,
         loop: asyncio.AbstractEventLoop = None,
+        client_session: aiohttp.ClientSession = None,
     ) -> None:
         """
         Initialize the connection to MusicAssistant.
@@ -57,10 +58,16 @@ class MusicAssistant:
         self._async_send_ws = None
         self._ws_callbacks: dict = {}
         self._players: dict = {}
-        self._http_session = None
+        if client_session:
+            self._http_session_provided = True
+            self._http_session = client_session
+        else:
+            self._http_session_provided = False
+            self._http_session = None
         self._event_listeners: list = []
         self._ws_task = None
         self._auth_token: dict = {}
+        self._connected = False
 
     @property
     def host(self):
@@ -79,17 +86,43 @@ class MusicAssistant:
             return f"https://{self.host}:{self.port}"
         return f"http://{self.host}:{self.port}"
 
-    async def async_connect(self) -> None:
-        """Connect to Music Assistant."""
+    @property
+    def connected(self):
+        """Return bool if the connection with the server is alive."""
+        return self._connected
+
+    async def async_connect(self, auto_retry: bool = False) -> None:
+        """
+        Connect to Music Assistant.
+
+        :param auto_retry: Auto retry if the server is not (yet) available.
+
+        """
         if not self._loop:
             self._loop = asyncio.get_running_loop()
-        self._http_session = aiohttp.ClientSession(
-            loop=self._loop, connector=aiohttp.TCPConnector()
-        )
-        await self.async_get_token()
-        self._ws_task: asyncio.Task = self._loop.create_task(
-            self.__async_mass_websocket()
-        )
+        if not self._http_session_provided:
+            self._http_session = aiohttp.ClientSession(
+                loop=self._loop, connector=aiohttp.TCPConnector()
+            )
+        try:
+            await self.async_get_token()
+            self._ws_task: asyncio.Task = self._loop.create_task(
+                self.__async_mass_websocket()
+            )
+        except (
+            aiohttp.client_exceptions.ClientConnectorError,
+            ConnectionRefusedError,
+        ) as exc:
+            if auto_retry:
+                # schedule the reconnect
+                LOGGER.debug(
+                    "Connection to the server not available, will rety in 60 seconds..."
+                )
+                self._loop.call_later(
+                    60, self._loop.create_task(self.async_connect(auto_retry))
+                )
+            else:
+                raise exc
 
     async def async_close(self) -> None:
         """Close/stop the connection."""
@@ -192,6 +225,22 @@ class MusicAssistant:
         scheme = "https" if self._use_ssl else "http"
         return f"{scheme}{self._host}/api/{media_type}/{item_id}?provider={provider_id}&size={size}"
 
+    async def async_get_media_item_image_url(self, media_item: dict, size=150):
+        """Get image url for given media_item by providing the media item."""
+        if not media_item:
+            return None
+        if media_item["metadata"].get("image"):
+            return media_item["metadata"]["image"]
+        if media_item.get("album", {}).get("metdata", {}).get("image"):
+            return media_item["metadata"]["album"]["image"]
+        if media_item["provider"] == "database":
+            item_type = media_item["media_type"]
+            item_id = media_item["item_id"]
+            item_prov = media_item["provider"]
+            base_url = f"{self.base_url}/api"
+            return f"{base_url}/{item_type}/{item_id}/thumb?provider={item_prov}&size={size}"
+        return None
+
     async def async_get_artist_toptracks(
         self, artist_id: str, provider_id: str
     ) -> List[dict]:
@@ -288,22 +337,6 @@ class MusicAssistant:
             f"players/{player_id}/play_media/{queue_opt}", media_items
         )
 
-    async def async_get_media_item_image_url(self, media_item: dict, size=150):
-        """Get image url for given media_item."""
-        if not media_item:
-            return None
-        if media_item["metadata"].get("image"):
-            return media_item["metadata"]["image"]
-        if media_item.get("album", {}).get("metdata", {}).get("image"):
-            return media_item["metadata"]["album"]["image"]
-        if media_item["provider"] == "database":
-            item_type = media_item["media_type"]
-            item_id = media_item["item_id"]
-            item_prov = media_item["provider"]
-            base_url = f"{self.base_url}/api"
-            return f"{base_url}/{item_type}/{item_id}/thumb?provider={item_prov}&size={size}"
-        return None
-
     async def async_get_token(self) -> str:
         """Get auth token by logging in."""
         # return existing token if we have one in memory
@@ -367,7 +400,8 @@ class MusicAssistant:
                             msg = data["message"]
                             msg_details = data["message_details"]
                             if msg == "login" and msg_details.get("exp"):
-                                LOGGER.info("Connected to %s", self._host)
+                                LOGGER.debug("Connected to %s", self._host)
+                                self._connected = True
                                 # subscribe to all events
                                 await send_msg("add_event_listener")
                             else:
@@ -380,11 +414,14 @@ class MusicAssistant:
                 ConnectionRefusedError,
             ) as exc:
                 LOGGER.error(exc)
+                self._connected = False
                 self._async_send_ws = None
                 await asyncio.sleep(30)
 
     async def __async_get_data(self, endpoint: str) -> Union[List[dict], dict]:
         """Get data from hass rest api."""
+        if not self._connected:
+            raise RuntimeError("Not connected")
         token = await self.async_get_token()
         url = f"{self.base_url}/api/{endpoint}"
         headers = {
@@ -398,6 +435,8 @@ class MusicAssistant:
 
     async def __async_post_data(self, endpoint: str, data: Any) -> Any:
         """Post data to hass rest api."""
+        if not self._connected:
+            raise RuntimeError("Not connected")
         token = await self.async_get_token()
         url = f"{self.base_url}/api/{endpoint}"
         headers = {
@@ -411,6 +450,8 @@ class MusicAssistant:
 
     async def __async_put_data(self, endpoint: str, data: Any) -> Any:
         """Put data to hass rest api."""
+        if not self._connected:
+            raise RuntimeError("Not connected")
         token = await self.async_get_token()
         url = f"{self.base_url}/api/{endpoint}"
         headers = {
