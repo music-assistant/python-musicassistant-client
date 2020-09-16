@@ -129,7 +129,7 @@ class MusicAssistant:
                     60, self._loop.create_task, self.async_connect(auto_retry)
                 )
             else:
-                raise ConnectionError from exc
+                raise ConnectionFailedError from exc
 
     async def async_close(self) -> None:
         """Close/stop the connection."""
@@ -500,5 +500,5 @@ class NotConnectedError(Exception):
     """Exception raised when trying to call a method when the connection was not initialized."""
 
 
-class ConnectionError(Exception):
+class ConnectionFailedError(Exception):
     """Exception raised when the connection could not be established."""
