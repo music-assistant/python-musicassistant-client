@@ -23,6 +23,7 @@ EVENT_PLAYER_REMOVED = "player removed"
 EVENT_PLAYER_CHANGED = "player changed"
 EVENT_QUEUE_UPDATED = "queue updated"
 EVENT_QUEUE_ITEMS_UPDATED = "queue items updated"
+EVENT_QUEUE_TIME_UPDATED = "queue time updated"
 EVENT_SHUTDOWN = "application shutdown"
 EVENT_PROVIDER_REGISTERED = "provider registered"
 EVENT_PLAYER_CONTROL_REGISTERED = "player control registered"
@@ -423,9 +424,14 @@ class MusicAssistant:
 
             except (
                 aiohttp.client_exceptions.ClientConnectorError,
+                aiohttp.client_exceptions.ClientConnectionError,
+                aiohttp.client_exceptions.ServerConnectionError,
+                aiohttp.client_exceptions.ServerDisconnectedError,
                 ConnectionRefusedError,
             ) as exc:
-                LOGGER.error(exc)
+                LOGGER.debug(
+                    "Websocket disconnected, will auto reconnect in 30 seconds. %s", exc
+                )
                 self._async_send_ws = None
                 await asyncio.sleep(30)
 
