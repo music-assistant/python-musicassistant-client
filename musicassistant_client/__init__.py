@@ -45,7 +45,13 @@ class MusicAssistant:
         """
         Initialize the connection to MusicAssistant.
 
-            :param url: full url to the MusicAssistant instance.
+            :param host: Hostname/url to the MusicAssistant instance.
+            :param port: The port to use for this Music Assistant instance.
+            :param username: The username, defaults to admin.
+            :param password: The password, defaults to empty.
+            :param use_ssl: Use SSL for the connection.
+            :param loop: Optionally provide the evnt loop.
+            :param client_session: Optionally provide a aiohttp ClientSession.
         """
         if host.endswith("/"):
             host = host[:-1]  # strip trailing slash
@@ -119,7 +125,7 @@ class MusicAssistant:
                     "Connection to the server not available, will rety in 60 seconds..."
                 )
                 self._loop.call_later(
-                    60, self._loop.create_task(self.async_connect(auto_retry))
+                    60, self._loop.create_task, self.async_connect(auto_retry)
                 )
             else:
                 raise exc
