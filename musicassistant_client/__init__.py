@@ -134,7 +134,7 @@ class MusicAssistant:
         """Close/stop the connection."""
         if self._ws_task:
             self._ws_task.cancel()
-        if self._http_session:
+        if self._http_session and not self._http_session_provided:
             await self._http_session.close()
         LOGGER.info("Disconnected from Music Assistant")
 
