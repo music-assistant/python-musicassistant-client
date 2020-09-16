@@ -167,6 +167,11 @@ class MusicAssistant:
 
         return remove_listener
 
+    async def async_get_server_info(self) -> dict:
+        """Return the (discovery) server details for this Music Assistant server."""
+        result = await self.__async_get_data("info")
+        return result
+
     async def async_get_library_artists(self) -> List[dict]:
         """Return all library artists on Music Assistant."""
         result = await self.__async_get_data("library/artists")
