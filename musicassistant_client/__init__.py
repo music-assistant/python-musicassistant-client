@@ -27,7 +27,12 @@ EVENT_QUEUE_TIME_UPDATED = "queue time updated"
 EVENT_SHUTDOWN = "application shutdown"
 EVENT_PROVIDER_REGISTERED = "provider registered"
 EVENT_PLAYER_CONTROL_REGISTERED = "player control registered"
+EVENT_PLAYER_CONTROL_UNREGISTERED = "player control unregistered"
 EVENT_PLAYER_CONTROL_UPDATED = "player control updated"
+EVENT_SET_PLAYER_CONTROL_STATE = "set player control state"
+EVENT_REGISTER_PLAYER_CONTROL = "register player control"
+EVENT_UNREGISTER_PLAYER_CONTROL = "unregister player control"
+EVENT_UPDATE_PLAYER_CONTROL = "update player control"
 
 
 class MusicAssistant:
@@ -75,6 +80,7 @@ class MusicAssistant:
         self._ws_task = None
         self._auth_token: dict = {}
         self._connected = False
+        self._player_controls = {}
 
     @property
     def host(self):
@@ -168,6 +174,48 @@ class MusicAssistant:
             self._event_listeners.remove(listener)
 
         return remove_listener
+
+    async def async_register_player_control(
+        self,
+        control_type: int,
+        control_id: str,
+        provider_name: str,
+        name: str,
+        state: Any,
+        cb_func: Callable[..., Union[None, Awaitable]],
+    ):
+        """
+        Register a playercontrol with Music Assistant.
+
+            :param control_type: Type of the PlayerControl. 0 for PowerControl, 1 for VolumeControl
+            :param control_id: A unique id for this PlayerControl.
+            :param provider_name: Your application name.
+            :param name: A friendly name for this control.
+            :param state: The current state for this control.
+            :param cb_func: A callback that will be called when a new state needs to be set.
+        """
+        control = {
+            "type": control_type,
+            "control_id": control_id,
+            "provider": provider_name,
+            "name": name,
+            "state": state,
+        }
+        self._player_controls[control_id] = (control, cb_func)
+        await self.async_send_event(EVENT_REGISTER_PLAYER_CONTROL, control)
+
+    async def async_update_player_control(self, control_id: str, new_state: Any):
+        """
+        Update state of an existing playercontrol.
+
+            :param control_id: A unique id for this PlayerControl.
+            :param new_state: The current/new state for this control.
+        """
+        if control_id not in self._player_controls:
+            raise RuntimeError("Invalid player control")
+        control = self._player_controls[control_id][0]
+        control["state"] = new_state
+        await self.async_send_event(EVENT_PLAYER_CONTROL_UPDATED, control)
 
     async def async_get_server_info(self) -> dict:
         """Return the (discovery) server details for this Music Assistant server."""
@@ -376,8 +424,8 @@ class MusicAssistant:
             return self._auth_token["token"]
         raise InvalidCredentialsError("Login failed. Invalid credentials provided?")
 
-    async def send_event(self, message: str, message_details: Any = None) -> None:
-        """Send event to Music Assistant."""
+    async def async_send_event(self, message: str, message_details: Any = None) -> None:
+        """Send event/command to Music Assistant."""
         if not self._async_send_ws:
             raise NotConnectedError("Not connected")
         await self._async_send_ws(message, message_details)
@@ -417,6 +465,13 @@ class MusicAssistant:
                                 await self.__async_signal_event(EVENT_CONNECTED)
                                 # subscribe to all events
                                 await send_msg("add_event_listener")
+                            if msg == EVENT_SET_PLAYER_CONTROL_STATE:
+                                control = self._player_controls.get(
+                                    msg_details["control_id"]
+                                )
+                                if not control:
+                                    continue
+                                await control[1](msg_details["state"])
                             else:
                                 await self.__async_signal_event(msg, msg_details)
                         elif msg.type == aiohttp.WSMsgType.ERROR:
