@@ -4,14 +4,18 @@ import asyncio
 import logging
 import sys
 
-from musicassistant_client import (
-    EVENT_PLAYER_ADDED,
-    EVENT_PLAYER_CHANGED,
-    EVENT_QUEUE_UPDATED,
-    MusicAssistant,
-)
+from musicassistant_client import MusicAssistant, async_get_token
 
 LOGGER = logging.getLogger()
+
+
+def global_exception_handler(loop, context) -> None:
+    """Global exception handler."""
+    LOGGER.exception(
+        "Caught exception: %s", context.get("exception", context["message"])
+    )
+    loop.default_exception_handler(context)
+
 
 if __name__ == "__main__":
 
@@ -23,45 +27,62 @@ if __name__ == "__main__":
     LOGGER.addHandler(consolehandler)
     LOGGER.setLevel(logging.DEBUG)
 
-    if len(sys.argv) < 4:
-        LOGGER.error(
-            "usage: example.py <host> <username> <password> <optional: port> <optional: use ssl>"
-        )
+    if len(sys.argv) < 3:
+        LOGGER.error("usage: example.py <host> <username> <password>")
         sys.exit()
 
     host = sys.argv[1]
     username = sys.argv[2]
     password = sys.argv[3]
-    port = sys.argv[4] if sys.argv > 4 else 8095
-    use_ssl = sys.argv[5] if sys.argv > 5 else False
     loop = asyncio.get_event_loop()
-    mass = MusicAssistant(host, port, username, password, use_ssl)
+    loop.set_exception_handler(global_exception_handler)
 
     async def mass_event(event, event_details):
         """Handle callback for received events."""
         LOGGER.info("received event %s --> %s\n", event, event_details)
 
-    mass.register_event_callback(
-        mass_event, [EVENT_PLAYER_ADDED, EVENT_PLAYER_CHANGED, EVENT_QUEUE_UPDATED]
-    )
-
     async def run():
         """Handle async code execution."""
-        await mass.async_connect()
-        players = await mass.async_get_players()
-        LOGGER.info("There are %s players registered in Music Assistant", len(players))
-        artists = await mass.async_get_library_artists()
-        LOGGER.info("There are %s artists registered in Music Assistant", len(artists))
-        albums = await mass.async_get_library_albums()
-        LOGGER.info("There are %s albums registered in Music Assistant", len(albums))
-        tracks = await mass.async_get_library_tracks()
-        LOGGER.info("There are %s tracks registered in Music Assistant", len(tracks))
-        playlists = await mass.async_get_library_tracks()
-        LOGGER.info(
-            "There are %s playlists registered in Music Assistant", len(playlists)
-        )
-        await asyncio.sleep(10)
-        await mass.async_close()
+        # retrieve token
+        token = await async_get_token(host, username, password)
+        # connect to server and issue some commands
+        async with MusicAssistant(host, token, loop=loop) as mass:
+            # register event callback
+            mass.register_event_callback(mass_event)
+            # get data from a few endpoints
+            players = await mass.async_get_players()
+            LOGGER.info(
+                "There are %s players registered in Music Assistant", len(players)
+            )
+            artists = await mass.async_get_library_artists()
+            LOGGER.info(
+                "There are %s artists registered in Music Assistant", len(artists)
+            )
+            albums = await mass.async_get_library_albums()
+            LOGGER.info(
+                "There are %s albums registered in Music Assistant", len(albums)
+            )
+            tracks = await mass.async_get_library_tracks()
+            LOGGER.info(
+                "There are %s tracks registered in Music Assistant", len(tracks)
+            )
+            playlists = await mass.async_get_library_playlists()
+            LOGGER.info(
+                "There are %s playlists registered in Music Assistant", len(playlists)
+            )
+
+            # register player control
+            async def player_control_command(new_state):
+                LOGGER.info("Player control, new state requested: %s", new_state)
+                # report back new state
+                await mass.async_update_player_control("example", new_state)
+
+            await mass.async_register_player_control(
+                0, "example", "example", "Example", False, player_control_command
+            )
+
+            # just wait a bit and receive events
+            await asyncio.sleep(600)
         loop.stop()
 
     try:
