@@ -251,6 +251,10 @@ class MusicAssistant:
         """Return all library radios on Music Assistant."""
         return await self.async_get_data("library/radios")
 
+    async def async_get_item(self, item_id: str, provider_id: str, media_type: str):
+        """Get single music item by id and media type."""
+        return await self.async_get_data(f"items/{media_type}/{provider_id}/{item_id}")
+
     async def async_get_artist(self, artist_id: str, provider_id: str) -> dict:
         """Return full artist object for specified artist/provider id.."""
         return await self.async_get_data(f"artists/{provider_id}/{artist_id}")
@@ -286,12 +290,23 @@ class MusicAssistant:
         """Get full/original image url for given media_item by providing the media item."""
         if not media_item:
             return None
-        if "metadata" in media_item and media_item["metadata"].get("image"):
+        if media_item.get("metadata") and media_item["metadata"].get("image"):
             return media_item["metadata"]["image"]
-        if media_item.get("album", {}).get("metadata", {}).get("image"):
-            return media_item["album"]["metadata"]["image"]
-        if media_item.get("artist", {}).get("metadata", {}).get("image"):
-            return media_item["artist"]["metadata"]["image"]
+        if media_item.get("album") and media_item["album"].get("metadata"):
+            if media_item["album"]["metadata"].get("image"):
+                return media_item["album"]["metadata"]["image"]
+        if media_item.get("artist") and media_item["artist"].get("metadata"):
+            if media_item["artist"]["metadata"].get("image"):
+                return media_item["artist"]["metadata"]["image"]
+        # get full item
+        media_item = await self.async_get_item(
+            media_item["item_id"], media_item["provider"], media_item["media_type"]
+        )
+        if media_item.get("metadata") and media_item["metadata"].get("image"):
+            return media_item["metadata"]["image"]
+        if media_item.get("album") and media_item["album"].get("metadata"):
+            if media_item["album"]["metadata"].get("image"):
+                return media_item["album"]["metadata"]["image"]
         return None
 
     async def async_get_artist_toptracks(
@@ -401,6 +416,20 @@ class MusicAssistant:
         return await self.async_send_command(
             f"players/{player_id}/play_media",
             {"items": media_items, "queue_opt": queue_opt},
+        )
+
+    async def async_cmd_play_uri(self, player_id: str, uri: str):
+        """
+        Play the specified uri/url on the given player.
+
+        Will create a fake track on the queue.
+
+            :param player_id: player_id of the player to handle the command.
+            :param uri: Url/Uri that can be played by a player.
+        """
+        return await self.async_send_command(
+            f"players/{player_id}/play_uri",
+            {"uri": uri},
         )
 
     async def async_send_event(self, event: str, data: Any = None) -> None:
