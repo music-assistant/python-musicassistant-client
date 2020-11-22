@@ -87,7 +87,6 @@ class MusicAssistant:
         self._loop = loop
         self._async_send_ws = None
         self._ws_results: dict = {}
-        self._players: dict = {}
         if client_session:
             self._http_session_provided = True
             self._http_session = client_session
@@ -99,6 +98,7 @@ class MusicAssistant:
         self._auth_token: dict = {}
         self._connected = False
         self._player_controls = {}
+        self._server_info = {}
 
     async def __aenter__(self):
         """Enter."""
@@ -113,6 +113,36 @@ class MusicAssistant:
     def connected(self):
         """Return bool if the connection with the server is alive."""
         return self._connected
+
+    @property
+    def server_info(self):
+        """Return server info."""
+        return self._server_info
+
+    @property
+    def host(self):
+        """Return server hostname."""
+        return self._server_info.get("host", self._server)
+
+    @property
+    def port(self):
+        """Return server port."""
+        return self._server_info.get("port", self._port)
+
+    @property
+    def server_id(self):
+        """Return server id."""
+        return self._server_info.get("id")
+
+    @property
+    def server_version(self):
+        """Return server version."""
+        return self._server_info.get("version")
+
+    @property
+    def server_name(self):
+        """Return server name."""
+        return self._server_info.get("friendly_name")
 
     async def async_connect(self) -> None:
         """Connect to a local Music Assistant server."""
@@ -259,9 +289,9 @@ class MusicAssistant:
         if "metadata" in media_item and media_item["metadata"].get("image"):
             return media_item["metadata"]["image"]
         if media_item.get("album", {}).get("metadata", {}).get("image"):
-            return media_item["metadata"]["album"]["image"]
+            return media_item["album"]["metadata"]["image"]
         if media_item.get("artist", {}).get("metadata", {}).get("image"):
-            return media_item["metadata"]["artist"]["image"]
+            return media_item["artist"]["metadata"]["image"]
         return None
 
     async def async_get_artist_toptracks(
@@ -520,3 +550,7 @@ class MusicAssistant:
                 self._loop.create_task(check_target(event, event_details))
             else:
                 self._loop.run_in_executor(None, cb_func, event, event_details)
+
+    async def __async_get_server_info(self):
+        """Get server info."""
+        self._server_info = await self.async_get_data("info")
