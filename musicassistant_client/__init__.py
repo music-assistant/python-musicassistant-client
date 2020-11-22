@@ -56,7 +56,7 @@ async def async_get_token(
     async with aiohttp.ClientSession() as http_session:
         async with http_session.post(url, json=data) as response:
             token_info = await response.json()
-            return token_info["token"]
+            return token_info
 
 
 class MusicAssistant:
@@ -79,6 +79,8 @@ class MusicAssistant:
             :param loop: Optionally provide the event loop.
             :param client_session: Optionally provide a aiohttp ClientSession.
         """
+        if isinstance(token, dict):
+            token = token["token"]
         self._server = server
         self._port = port
         self._token = token
