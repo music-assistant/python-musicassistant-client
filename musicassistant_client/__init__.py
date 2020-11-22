@@ -13,7 +13,11 @@ import uuid
 from typing import Any, Awaitable, Callable, List, Optional, Union
 
 import aiohttp
-import ujson
+
+try:
+    import ujson as json
+except ImportError:
+    import json
 
 APP_ID = "musicassistant-client"
 LOGGER = logging.getLogger(APP_ID)
@@ -503,7 +507,7 @@ class MusicAssistant:
             async def send_msg(*args, **kwargs) -> None:
                 """Handle to send messages back to WS."""
                 try:
-                    await websocket.send_json(kwargs, dumps=ujson.dumps)
+                    await websocket.send_json(kwargs, dumps=json.dumps)
                 except Exception:  # pylint: disable=broad-except
                     LOGGER.debug("error while sending message to ws", exc_info=True)
 
@@ -522,7 +526,7 @@ class MusicAssistant:
                 if msg.data == "close":
                     await websocket.close()
                     break
-                json_msg = msg.json(loads=ujson.loads)
+                json_msg = msg.json(loads=json.loads)
                 # incoming error message
                 if "error" in json_msg:
                     # authentication error
