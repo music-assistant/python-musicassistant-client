@@ -35,6 +35,8 @@ EVENT_REGISTER_PLAYER_CONTROL = "register player control"
 EVENT_UNREGISTER_PLAYER_CONTROL = "unregister player control"
 EVENT_UPDATE_PLAYER_CONTROL = "update player control"
 
+# pylint: disable=c-extension-no-member
+
 
 async def async_get_token(
     server: str, username: str, password: str, app_id: str = None, port: int = 8095
@@ -287,18 +289,17 @@ class MusicAssistant:
         return await self.async_get_data(f"albums/{provider_id}/{album_id}/tracks")
 
     async def async_search(
-        self,
-        search_query: str,
-        media_types: List[str] = ["artists", "albums", "tracks", "playlists", "radios"],
-        limit=10,
+        self, search_query: str, media_types: List[str] = None, limit=10
     ) -> dict:
         """
         Perform global search for media items on all providers.
 
             :param search_query: Search query.
             :param media_types: A list of media_types to include.
-            :param limit: number of items to return in the search (per type).
+            :param limit: number of items to return in the search (per type). All if ommitted.
         """
+        if media_types is None:
+            media_types = ["artists", "albums", "tracks", "playlists", "radios"]
         data = {
             "search_query": search_query,
             "media_types": media_types,
@@ -336,7 +337,7 @@ class MusicAssistant:
         self, queue_id: str, enable_shuffle: bool = False
     ):
         """Send enable/disable shuffle command to given playerqueue."""
-        return await self.__async_put_data(
+        return await self.async_send_command(
             f"players/{queue_id}/queue/cmd/shuffle_enabled/{enable_shuffle}"
         )
 
@@ -344,7 +345,7 @@ class MusicAssistant:
         self, queue_id: str, enable_repeat: bool = False
     ):
         """Send enable/disable repeat command to given playerqueue."""
-        return await self.__async_put_data(
+        return await self.async_send_command(
             f"players/{queue_id}/queue/cmd/repeat_enabled/{enable_repeat}"
         )
 
@@ -365,7 +366,7 @@ class MusicAssistant:
                 next -> Play item(s) after current playing item
                 add -> Append new items at end of the queue
         """
-        return await self.__async_post_data(
+        return await self.async_send_command(
             f"players/{player_id}/play_media",
             {"items": media_items, "queue_opt": queue_opt},
         )
