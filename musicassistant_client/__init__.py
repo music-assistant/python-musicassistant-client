@@ -531,6 +531,7 @@ class MusicAssistant:
                         self._connected = True
                         LOGGER.info("Connected to %s", self._server)
                         await self.__async_signal_event(EVENT_CONNECTED)
+                        asyncio.create_task(self.__async_get_server_info())
                     if "id" in json_msg and json_msg["id"] in self._ws_results:
                         await self._ws_results[json_msg["id"]].put(json_msg.get("data"))
 
