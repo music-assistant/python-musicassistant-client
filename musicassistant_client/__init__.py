@@ -55,12 +55,26 @@ async def async_get_token(
                        A short-lived, single session token will be issued if appp_id is ommitted.
         :param port: The port to use for this Music Assistant instance, default is 8095.
     """
-    url = f"http://{server}:{port}/login"
-    data = {"username": username, "password": password, "app_id": app_id}
+
+    endpoint = f"ws://{server}:{port}/ws"
+    login_data = {"username": username, "password": password, "app_id": app_id}
+    LOGGER.debug("Connecting to %s", endpoint)
     async with aiohttp.ClientSession() as http_session:
-        async with http_session.post(url, json=data) as response:
-            token_info = await response.json()
-            return token_info
+        async with http_session.ws_connect(endpoint) as websocket:
+            # send login message
+            await websocket.send_json({"command": "get_token", "data": login_data})
+            # keep listening for messages
+            async for msg in websocket:
+                if msg.type != aiohttp.WSMsgType.text:
+                    continue
+                json_msg = msg.json(loads=json.loads)
+                # incoming error message
+                if "error" in json_msg:
+                    # authentication error
+                    LOGGER.error("Authentication failed: %s", json_msg["error"])
+                    raise RuntimeError("Authentication failed: %s" % json_msg["error"])
+                # return token info
+                return json_msg["data"]
 
 
 class MusicAssistant:
@@ -398,6 +412,38 @@ class MusicAssistant:
         """Send enable/disable repeat command to given playerqueue."""
         return await self.async_send_command(
             f"players/{queue_id}/queue/cmd/repeat_enabled/{enable_repeat}"
+        )
+
+    async def async_player_queue_cmd_clear(self, queue_id: str):
+        """Clear all items in the player's queue."""
+        return await self.async_send_command(f"players/{queue_id}/queue/cmd/clear")
+
+    async def async_player_queue_cmd_next(self, queue_id: str):
+        """Send next track command to player's queue."""
+        return await self.async_send_command(f"players/{queue_id}/queue/cmd/next")
+
+    async def async_player_queue_cmd_previous(self, queue_id: str):
+        """Send previous track command to player's queue."""
+        return await self.async_send_command(f"players/{queue_id}/queue/cmd/previous")
+
+    async def async_player_queue_cmd_move_item(
+        self, queue_id: str, queue_item_id: str, pos_shift: int = 1
+    ):
+        """
+        Move queue item x up/down the queue.
+
+        param pos_shift: move item x positions down if positive value
+                         move item x positions up if negative value
+                         move item to top of queue as next item if 0
+        """
+        return await self.async_send_command(
+            f"players/{queue_id}/queue/cmd/move{queue_item_id}/{pos_shift}"
+        )
+
+    async def async_play_index(self, queue_id: str, index: Union[int, str]) -> None:
+        """Play item at index (or item_id) X in queue."""
+        return await self.async_send_command(
+            f"players/{queue_id}/queue/cmd/index/{index}"
         )
 
     async def async_play_media(
