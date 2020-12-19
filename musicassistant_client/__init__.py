@@ -43,24 +43,23 @@ EVENT_UPDATE_PLAYER_CONTROL = "update player control"
 
 
 async def async_get_token(
-    server: str, username: str, password: str, app_id: str = None, port: int = 8095
+    address: str, username: str, password: str, app_id: str = None
 ) -> dict:
     """
     Retrieve token to access a local MusicAssistant server.
 
-        :param server: Hostname/ipaddress to the MusicAssistant instance.
+        :param address: Websocket address to Music Assistant server
+                       (e.g. ws://musicassistant.local:8095/ws).
         :param username: Username to authenticate.
         :param password: Password to authenticate.
         :param app_id: Some (friendly) identifier for your app.
                        A short-lived, single session token will be issued if appp_id is ommitted.
-        :param port: The port to use for this Music Assistant instance, default is 8095.
     """
 
-    endpoint = f"ws://{server}:{port}/ws"
     login_data = {"username": username, "password": password, "app_id": app_id}
-    LOGGER.debug("Connecting to %s", endpoint)
+    LOGGER.debug("Connecting to %s", address)
     async with aiohttp.ClientSession() as http_session:
-        async with http_session.ws_connect(endpoint) as websocket:
+        async with http_session.ws_connect(address) as websocket:
             # send login message
             await websocket.send_json({"command": "get_token", "data": login_data})
             # keep listening for messages
@@ -82,16 +81,16 @@ class MusicAssistant:
 
     def __init__(
         self,
-        server: str,
+        address: str,
         token: str,
-        port: int = 8095,
         loop: asyncio.AbstractEventLoop = None,
         client_session: aiohttp.ClientSession = None,
     ) -> None:
         """
         Initialize the connection to a MusicAssistant server.
 
-            :param server: Hostname/ipaddress to the MusicAssistant instance.
+            :param address: Websocket address to Music Assistant server
+                       (e.g. ws://musicassistant.local:8095/ws).
             :param token: (long lived) JWT token to use for authentication, may be retrieved with get_token().
             :param port: The port to use for this Music Assistant instance, default is 8095.
             :param loop: Optionally provide the event loop.
@@ -99,8 +98,7 @@ class MusicAssistant:
         """
         if isinstance(token, dict):
             token = token["token"]
-        self._server = server
-        self._port = port
+        self._address = address
         self._token = token
         self._loop = loop
         self._async_send_ws = None
@@ -138,14 +136,9 @@ class MusicAssistant:
         return self._server_info
 
     @property
-    def host(self):
-        """Return server hostname."""
-        return self._server_info.get("host", self._server)
-
-    @property
-    def port(self):
-        """Return server port."""
-        return self._server_info.get("port", self._port)
+    def address(self):
+        """Return server address."""
+        return self._server_info.get("address", self._address)
 
     @property
     def server_id(self):
@@ -545,9 +538,8 @@ class MusicAssistant:
     async def __async_mass_websocket(self) -> None:
         """Handle websocket connection to/from Music Assistant."""
 
-        endpoint = f"ws://{self._server}:{self._port}/ws"
-        LOGGER.debug("Connecting to %s", endpoint)
-        async with self._http_session.ws_connect(endpoint) as websocket:
+        LOGGER.debug("Connecting to %s", self._address)
+        async with self._http_session.ws_connect(self._address) as websocket:
 
             # store handle to send messages to ws
             async def send_msg(*args, **kwargs) -> None:
@@ -608,7 +600,7 @@ class MusicAssistant:
                     if json_msg["result"] == "auth":
                         # authentication succeeded
                         self._connected = True
-                        LOGGER.info("Connected to %s", self._server)
+                        LOGGER.info("Connected to %s", self._address)
                         await self.__async_signal_event(EVENT_CONNECTED)
                         asyncio.create_task(self.__async_get_server_info())
                     if "id" in json_msg and json_msg["id"] in self._ws_results:
