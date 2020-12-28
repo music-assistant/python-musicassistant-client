@@ -533,7 +533,7 @@ class MusicAssistant:
                 LOGGER.debug(
                     "Websocket disconnected, will auto reconnect in 30 seconds."
                 )
-                await asyncio.sleep(30)
+            await asyncio.sleep(30)
 
     async def __async_mass_websocket(self) -> None:
         """Handle websocket connection to/from Music Assistant."""
@@ -568,7 +568,7 @@ class MusicAssistant:
                 # incoming error message
                 if "error" in json_msg:
                     # authentication error
-                    if json_msg.get("result") == "auth":
+                    if json_msg.get("command") == "auth":
                         LOGGER.error("Authentication failed: %s", json_msg["error"])
                         raise RuntimeError(
                             "Authentication failed: %s" % json_msg["error"]
